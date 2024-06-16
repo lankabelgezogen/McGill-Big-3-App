@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:wakelock/wakelock.dart';
 
 void main() => runApp(const MyApp());
 
@@ -95,6 +96,7 @@ class _TimerScreenState extends State<TimerScreen> {
     if (_timer != null) {
       _timer!.cancel();
     }
+    Wakelock.enable();
     _playAnnouncement();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
@@ -110,6 +112,7 @@ class _TimerScreenState extends State<TimerScreen> {
             _seconds = 10;
           } else {
             timer.cancel();
+            Wakelock.disable();
             _showCompletionDialog();
           }
         }
@@ -121,6 +124,7 @@ class _TimerScreenState extends State<TimerScreen> {
     if (_timer != null) {
       _timer!.cancel();
     }
+    Wakelock.disable();
   }
 
   void _nextStep() {
