@@ -24,11 +24,13 @@ class TimerScreen extends StatefulWidget {
 
 class _TimerScreenState extends State<TimerScreen> {
   int _seconds = 10;
+  int _preExerciseCountdown = 5;
   Timer? _timer;
   final player = AudioPlayer();
   bool _mcgillCurlUpAnnounced = false;
   bool _sidePlankAnnounced = false;
   bool _birdDogAnnounced = false;
+  bool _preExerciseCountdownActive = true;
 
   final List<String> _exerciseSequence = const [
     'McGill Curl-Up: Left Side',
@@ -36,7 +38,6 @@ class _TimerScreenState extends State<TimerScreen> {
     'McGill Curl-Up: Left Side',
     'Pause',
     'McGill Curl-Up: Left Side',
-    'Pause',
     'Switch Sides',
     'McGill Curl-Up: Right Side',
     'Pause',
@@ -49,7 +50,6 @@ class _TimerScreenState extends State<TimerScreen> {
     'Side Plank: Left Side',
     'Pause',
     'Side Plank: Left Side',
-    'Pause',
     'Switch Sides',
     'Side Plank: Right Side',
     'Pause',
@@ -62,17 +62,34 @@ class _TimerScreenState extends State<TimerScreen> {
     'Bird-Dog: Left Side',
     'Pause',
     'Bird-Dog: Left Side',
-    'Pause',
     'Switch Sides',
     'Bird-Dog: Right Side',
     'Pause',
     'Bird-Dog: Right Side',
     'Pause',
-    'Bird-Dog: Right Side',
-    'Pause',
+    'Bird-Dog: Right Side'
   ];
 
   int _currentStep = 0;
+
+  void _startPreExerciseCountdown() {
+    setState(() {
+      _preExerciseCountdownActive = true;
+      _preExerciseCountdown = 5;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_preExerciseCountdown > 0) {
+          _preExerciseCountdown--;
+        } else {
+          _preExerciseCountdownActive = false;
+          timer.cancel();
+          _startTimer();
+        }
+      });
+    });
+  }
 
   void _startTimer() {
     if (_timer != null) {
@@ -82,7 +99,7 @@ class _TimerScreenState extends State<TimerScreen> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_seconds > 0) {
-          if (_seconds <= 3) {
+          if (_seconds <= 1) {
             _playBeep();
           }
           _seconds--;
@@ -182,57 +199,79 @@ class _TimerScreenState extends State<TimerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('McGill Big 3 Timer'),
+        title: const Text('McGill Big 3'),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
-              _exerciseSequence[_currentStep],
-              style: const TextStyle(fontSize: 24),
-              textAlign: TextAlign.center,
-            ),
+            if (_preExerciseCountdownActive)
+              Text(
+                'Starting in $_preExerciseCountdown seconds',
+                style: const TextStyle(fontSize: 24),
+              )
+            else
+              Column(
+                children: [
+                  Text(
+                    _exerciseSequence[_currentStep],
+                    style: const TextStyle(fontSize: 24),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '$_seconds',
+                    style: const TextStyle(fontSize: 48),
+                  ),
+                  const SizedBox(height: 20),
+                  LinearProgressIndicator(
+                    value: (_currentStep + 1) / _exerciseSequence.length,
+                    minHeight: 10,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Next: ${_currentStep < _exerciseSequence.length - 1 ? _exerciseSequence[_currentStep + 1] : 'Completed'}',
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                ],
+              ),
             const SizedBox(height: 20),
-            Text(
-              '$_seconds',
-              style: const TextStyle(fontSize: 48),
-            ),
+            if (!_preExerciseCountdownActive)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: _startTimer,
+                    child: const Text('Start'),
+                  ),
+                  const SizedBox(width: 20),
+                  ElevatedButton(
+                    onPressed: _stopTimer,
+                    child: const Text('Stop'),
+                  ),
+                ],
+              ),
+            if (_preExerciseCountdownActive)
+              ElevatedButton(
+                onPressed: _startPreExerciseCountdown,
+                child: const Text('Start Workout'),
+              ),
             const SizedBox(height: 20),
-            LinearProgressIndicator(
-              value: (_currentStep + 1) / _exerciseSequence.length,
-              minHeight: 10,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ElevatedButton(
-                  onPressed: _startTimer,
-                  child: const Text('Start'),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: _stopTimer,
-                  child: const Text('Stop'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ElevatedButton(
-                  onPressed: _previousStep,
-                  child: const Text('Previous'),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: _nextStep,
-                  child: const Text('Next'),
-                ),
-              ],
-            ),
+            if (!_preExerciseCountdownActive)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: _previousStep,
+                    child: const Text('Previous'),
+                  ),
+                  const SizedBox(width: 20),
+                  ElevatedButton(
+                    onPressed: _nextStep,
+                    child: const Text('Next'),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
