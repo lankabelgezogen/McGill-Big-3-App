@@ -26,6 +26,9 @@ class _TimerScreenState extends State<TimerScreen> {
   int _seconds = 10;
   Timer? _timer;
   final player = AudioPlayer();
+  bool _mcgillCurlUpAnnounced = false;
+  bool _sidePlankAnnounced = false;
+  bool _birdDogAnnounced = false;
 
   final List<String> _exerciseSequence = const [
     'McGill Curl-Up: Left Side',
@@ -124,19 +127,22 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   Future<void> _playAnnouncement() async {
-    if (_currentStep == 0) {
+    if (_currentStep == 0 && !_mcgillCurlUpAnnounced) {
       await player.play(AssetSource("announcement_mcgill_curl_up.mp3"));
+      _mcgillCurlUpAnnounced = true;
     } else if (_exerciseSequence[_currentStep] == 'Switch Sides') {
       await player.play(AssetSource("announcement_switch_sides.mp3"));
-    } else if (_exerciseSequence[_currentStep] == 'Side Plank: Left Side' ||
-        _exerciseSequence[_currentStep] == 'Side Plank: Right Side') {
+    } else if (_exerciseSequence[_currentStep].startsWith('Side Plank') &&
+        !_sidePlankAnnounced) {
       if (_exerciseSequence[_currentStep - 1] == 'Pause') {
         await player.play(AssetSource("announcement_side_plank.mp3"));
+        _sidePlankAnnounced = true;
       }
-    } else if (_exerciseSequence[_currentStep] == 'Bird-Dog: Left Side' ||
-        _exerciseSequence[_currentStep] == 'Bird-Dog: Right Side') {
+    } else if (_exerciseSequence[_currentStep].startsWith('Bird-Dog') &&
+        !_birdDogAnnounced) {
       if (_exerciseSequence[_currentStep - 1] == 'Pause') {
         await player.play(AssetSource("announcement_bird_dog.mp3"));
+        _birdDogAnnounced = true;
       }
     }
   }
@@ -160,6 +166,9 @@ class _TimerScreenState extends State<TimerScreen> {
                 setState(() {
                   _currentStep = 0;
                   _seconds = 10;
+                  _mcgillCurlUpAnnounced = false;
+                  _sidePlankAnnounced = false;
+                  _birdDogAnnounced = false;
                 });
               },
             ),
