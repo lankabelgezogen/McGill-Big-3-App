@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock/wakelock.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-void main() => runApp(const MyApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -32,6 +39,9 @@ class _TimerScreenState extends State<TimerScreen> {
   bool _sidePlankAnnounced = false;
   bool _birdDogAnnounced = false;
   bool _preExerciseCountdownActive = true;
+  bool _workoutCompletedToday = false;
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
   final List<String> _exerciseSequence = const [
     'McGill Curl-Up: Left Side',
@@ -72,6 +82,74 @@ class _TimerScreenState extends State<TimerScreen> {
   ];
 
   int _currentStep = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeNotifications();
+    _checkWorkoutCompletion();
+  }
+
+  Future<void> _initializeNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('app_icon');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  Future<void> _checkWorkoutCompletion() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? lastCompletionDate = prefs.getString('lastCompletionDate');
+    if (lastCompletionDate != null) {
+      DateTime today = DateTime.now();
+      DateTime lastCompletion = DateTime.parse(lastCompletionDate);
+      if (today.year == lastCompletion.year &&
+          today.month == lastCompletion.month &&
+          today.day == lastCompletion.day) {
+        setState(() {
+          _workoutCompletedToday = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _setWorkoutCompletion() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    DateTime today = DateTime.now();
+    await prefs.setString('lastCompletionDate', today.toString());
+    setState(() {
+      _workoutCompletedToday = true;
+    });
+  }
+
+  Future<void> _scheduleNotification() async {
+    DateTime now = DateTime.now();
+    tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Germany/Berlin'));
+    DateTime scheduledTime = DateTime(now.year, now.month, now.day, 18, 0, 0);
+    if (scheduledTime.isBefore(now)) {
+      scheduledTime = scheduledTime.add(const Duration(days: 1));
+    }
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'daily_workout_reminder',
+      'Daily Workout Reminder',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      0,
+      'Daily Workout Reminder',
+      "Don't forget to complete your daily workout!",
+      tz.TZDateTime.from(scheduledTime, tz.local),
+      const NotificationDetails(android: androidPlatformChannelSpecifics),
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
 
   void _startPreExerciseCountdown() {
     setState(() {
@@ -114,6 +192,8 @@ class _TimerScreenState extends State<TimerScreen> {
             timer.cancel();
             Wakelock.disable();
             _showCompletionDialog();
+            _setWorkoutCompletion();
+            _scheduleNotification();
           }
         }
       });
@@ -209,73 +289,83 @@ class _TimerScreenState extends State<TimerScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            if (_preExerciseCountdownActive)
-              Text(
-                'Starting in $_preExerciseCountdown seconds',
-                style: const TextStyle(fontSize: 24),
-              )
-            else
-              Column(
-                children: [
-                  Text(
-                    _exerciseSequence[_currentStep],
-                    style: const TextStyle(fontSize: 24),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    '$_seconds',
-                    style: const TextStyle(fontSize: 48),
-                  ),
-                  const SizedBox(height: 20),
-                  LinearProgressIndicator(
-                    value: (_currentStep + 1) / _exerciseSequence.length,
-                    minHeight: 10,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Next: ${_currentStep < _exerciseSequence.length - 1 ? _exerciseSequence[_currentStep + 1] : 'Completed'}',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ],
+            if (_workoutCompletedToday)
+              const Text(
+                'You have completed your workout for today!',
+                style: TextStyle(fontSize: 20),
+                textAlign: TextAlign.center,
               ),
+            if (!_workoutCompletedToday)
+              if (_preExerciseCountdownActive)
+                Text(
+                  'Starting in $_preExerciseCountdown seconds',
+                  style: const TextStyle(fontSize: 24),
+                )
+              else
+                Column(
+                  children: [
+                    Text(
+                      _exerciseSequence[_currentStep],
+                      style: const TextStyle(fontSize: 24),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      '$_seconds',
+                      style: const TextStyle(fontSize: 48),
+                    ),
+                    const SizedBox(height: 20),
+                    LinearProgressIndicator(
+                      value: (_currentStep + 1) / _exerciseSequence.length,
+                      minHeight: 10,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Next: ${_currentStep < _exerciseSequence.length - 1 ? _exerciseSequence[_currentStep + 1] : 'Completed'}',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ],
+                ),
             const SizedBox(height: 20),
-            if (!_preExerciseCountdownActive)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  ElevatedButton(
-                    onPressed: _startTimer,
-                    child: const Text('Start'),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: _stopTimer,
-                    child: const Text('Stop'),
-                  ),
-                ],
-              ),
-            if (_preExerciseCountdownActive)
-              ElevatedButton(
-                onPressed: _startPreExerciseCountdown,
-                child: const Text('Start Workout'),
-              ),
+            if (!_workoutCompletedToday)
+              if (!_preExerciseCountdownActive)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    ElevatedButton(
+                      onPressed: _startTimer,
+                      child: const Text('Start'),
+                    ),
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: _stopTimer,
+                      child: const Text('Stop'),
+                    ),
+                  ],
+                ),
+            if (!_workoutCompletedToday)
+              if (_preExerciseCountdownActive)
+                ElevatedButton(
+                  onPressed: _startPreExerciseCountdown,
+                  child: const Text('Start Workout'),
+                ),
             const SizedBox(height: 20),
-            if (!_preExerciseCountdownActive)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  ElevatedButton(
-                    onPressed: _previousStep,
-                    child: const Text('Previous'),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: _nextStep,
-                    child: const Text('Next'),
-                  ),
-                ],
-              ),
+            if (!_workoutCompletedToday)
+              if (!_preExerciseCountdownActive)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    ElevatedButton(
+                      onPressed: _previousStep,
+                      child: const Text('Previous'),
+                    ),
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: _nextStep,
+                      child: const Text('Next'),
+                    ),
+                  ],
+                ),
           ],
         ),
       ),
